@@ -7,7 +7,7 @@ fi
 
 domains=(wordpress.bananacreative.tech)
 rsa_key_size=4096
-data_path="./nginx-conf/certbot"
+data_path="./certbot"
 email="developer@bananacreative.tech"
 staging=0
 
