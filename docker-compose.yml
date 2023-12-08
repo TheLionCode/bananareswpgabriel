@@ -1,0 +1,88 @@
+version: '3'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: db
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - MYSQL_DATABASE=$MYSQL_DATABASE
+    volumes:
+      - dbdata:/var/lib/mysql
+    command: '--default-authentication-plugin=mysql_native_password'
+    networks:
+      - sudeca
+
+  wordpress:
+    depends_on:
+      - db
+    image: wordpress:6.0.2-fpm-alpine
+    container_name: wordpress
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - WORDPRESS_DB_HOST=$MYSQL_HOST
+      - WORDPRESS_DB_USER=$MYSQL_USER
+      - WORDPRESS_DB_PASSWORD=$MYSQL_PASSWORD
+      - WORDPRESS_DB_NAME=wordpress
+    volumes:
+      - ./wordpress:/var/www/html
+      - ./.docker/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+    networks:
+      - sudeca
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: phpmyadmin
+    restart: always
+    ports:
+      - 8100:80
+    environment:
+      - PMA_HOST=db
+      - PMA_PORT=3306
+      - PMA_USER=$MYSQL_USER
+      - PMA_PASSWORD=$MYSQL_PASSWORD
+      - PMA_ARBITRARY=1
+    networks:
+      - sudeca
+
+  nginx:
+    depends_on:
+      - wordpress
+    image: nginx:1.15.12-alpine
+    container_name: nginx
+    links:
+      - wordpress:wordpress
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+    env_file: .env
+    volumes:
+      - ./wordpress:/var/www/html
+      - ./.docker/templates:/etc/nginx/templates
+      - ./.docker/certbot/conf:/etc/letsencrypt
+      - ./.docker/certbot/www:/var/www/certbot
+    networks:
+      - sudeca
+
+  certbot:
+    depends_on:
+      - nginx
+    restart: always
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./.docker/certbot/conf:/etc/letsencrypt
+      - ./.docker/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - sudeca
+
+volumes:
+  dbdata:
+
+networks:
+  sudeca:
+    driver: bridge  
